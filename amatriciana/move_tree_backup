@@ -1,0 +1,156 @@
+package amatriciana
+
+import (
+	"bytes"
+	"errors"
+	"strconv"
+	"strings"
+)
+
+type moveCalculation struct {
+	board    Board
+	eval     float32
+	branches []*moveCalculation
+}
+
+var positions map[string]*moveCalculation
+
+func (b Board) treeify(depth int) (*moveCalculation, error) {
+	if depth == 0 {
+		return nil, nil
+	}
+
+	premadeCalculation, alreadyCalculated := positions[b.FEN()]
+	if alreadyCalculated {
+		return premadeCalculation, nil
+	}
+
+	moves := b.moves(b.turn)
+	if len(moves) == 0 {
+		return nil, nil
+	}
+
+	calculation := moveCalculation{
+		board:    b,
+		branches: make([]*moveCalculation, 0, len(moves)),
+	}
+
+	for _, move := range moves {
+		childBoard := b.Clone()
+		moved := childBoard.move(move)
+		if !moved {
+			continue
+		}
+
+		newBranch, err := childBoard.treeify(depth - 1)
+		if err != nil {
+			continue
+		}
+		calculation.branches = append(calculation.branches, newBranch)
+	}
+
+	return &calculation, nil
+
+}
+
+func (b Board) PrintTree() (string, error) {
+	positions = make(map[string]*moveCalculation, 2000)
+
+	virtualBoard := b.Clone()
+
+	tree, _ := virtualBoard.treeify(4)
+
+	return tree.printTree(), nil
+}
+
+func (m moveCalculation) printTree() string {
+	var output bytes.Buffer
+
+	output.WriteString("\nboard: ")
+	output.WriteString(m.board.FEN())
+
+	output.WriteString("\nself evaluation: ")
+	output.WriteString(strconv.FormatFloat(float64(m.eval), 'f', 6, 64))
+	output.WriteString("\n")
+	return output.String()
+}
+
+func (m move) UCIString() string {
+	return strings.Join([]string{m.from.String(), m.to.String()}, "")
+}
+
+func minimax(calc *moveCalculation, depth int, maximiseFor color) float32 {
+	if depth == 0 {
+		return calc.board.Evaluate()
+	}
+
+	var bestEval float32
+	if maximiseFor == white {
+		bestEval = -10000.0
+		for i := range calc.branches {
+			eval := minimax(calc.branches[i], depth-1, !maximiseFor)
+			bestEval = max(bestEval, eval)
+		}
+	} else if maximiseFor == black {
+		bestEval = -10000.0
+		for i := range calc.branches {
+			eval := minimax(calc.branches[i], depth-1, !maximiseFor)
+			bestEval = max(bestEval, eval)
+		}
+	}
+
+	calc.eval = bestEval
+
+	return bestEval
+}
+
+func (b Board) BestMove(depth int) (move, error) {
+	positions = make(map[string]*moveCalculation, 2000)
+
+	maximiseFor := b.turn
+	moves := b.moves(b.turn)
+
+	bestMove := move{}
+	var biggestAdvantage float32 = -1000.0
+
+	for _, move := range moves {
+		branchBoard := b.Clone()
+		branchBoard.move(move)
+		tree, err := branchBoard.treeify(depth)
+		if err != nil {
+			continue
+		}
+		advantageGained := minimax(tree, 4, maximiseFor)
+		if maximiseFor == black {
+			advantageGained *= -1
+		}
+
+		if advantageGained > biggestAdvantage {
+			bestMove = move
+			biggestAdvantage = advantageGained
+		}
+	}
+
+	emptyMove := move{}
+	if bestMove == emptyMove {
+		return move{}, errors.New("couldn't find the best move no idea why don't @ me")
+	}
+
+	return bestMove, nil
+}
+
+func max(a, b float32) float32 {
+	if a > b {
+		return a
+	}
+
+	return b
+}
+
+func min(a, b float32) float32 {
+	if a < b {
+		return a
+	}
+
+	return b
+}

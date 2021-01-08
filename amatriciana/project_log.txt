@@ -1,0 +1,1 @@
+january 3rd: redid the move struct into the Move interface

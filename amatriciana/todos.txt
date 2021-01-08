@@ -1,0 +1,16 @@
+[x] check for a check from pawns
+[] pawn promotion
+[] castling
+[x] parse fen
+[x] export fen
+[x] if neither side can castle show a dash
+[] actual board evaluation
+[x] kingInCheck() just reuses squareInCheck
+[] parse coordinates and en passant
+
+
+
+
+maybes
+[?] 2d board?
+[] refactor move to be an interface?
